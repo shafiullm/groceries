@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Only these Google accounts can read or change the grocery list.
+    // Replace the addresses with your own, keep the quotes and commas.
+    function allowed() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'your.email@gmail.com',
+          'second.person@gmail.com'
+        ];
+    }
+
+    match /lists/{listId}/{document=**} {
+      allow read, write: if allowed();
+    }
+  }
+}

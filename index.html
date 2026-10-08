@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16222b">
+<title>Shafi's Grocery List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+body{margin:0}
+
+/* Layout: one narrow column, built to be used one-handed in a supermarket aisle. Price-tag yellow marks money; edit mode adds a blue rail. */
+:root{
+  --bg:#eef1f3;
+  --surface:#ffffff;
+  --ink:#16222b;
+  --muted:#5b6a75;
+  --line:#d5dde2;
+  --tag:#ffd84a;
+  --tag-ink:#1b1a10;
+  --accent:#1f6f8b;
+  --accent-soft:#dcecf2;
+  --done:#9aa8b1;
+  --warn:#a3361f;
+  --font-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-label:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10171c;--surface:#18222a;--ink:#e6edf1;--muted:#93a3ae;--line:#2a3742;
+    --tag:#f2c935;--tag-ink:#1b1a10;--accent:#6cbfdc;--accent-soft:#1b3440;--done:#5d6c76;--warn:#ef8a70;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10171c;--surface:#18222a;--ink:#e6edf1;--muted:#93a3ae;--line:#2a3742;
+  --tag:#f2c935;--tag-ink:#1b1a10;--accent:#6cbfdc;--accent-soft:#1b3440;--done:#5d6c76;--warn:#ef8a70;color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.5}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:flex;flex-direction:column;gap:28px}
+
+header{display:flex;flex-direction:column;gap:12px}
+.eyebrow{font-family:var(--font-label);text-transform:uppercase;letter-spacing:.08em;font-size:14px;color:var(--muted);font-weight:600}
+h1{font-family:var(--font-label);font-weight:700;font-size:40px;line-height:1;margin:0;text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:60ch}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.status{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:0}
+.status::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--done)}
+.status.ok::before{background:var(--accent)}
+.status.err{color:var(--warn)}
+.status.err::before{background:var(--warn)}
+
+.totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tot{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tot span{font-family:var(--font-label);text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--muted);font-weight:600}
+.tot b{font-family:var(--font-label);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.tot.main{background:var(--tag);border-color:var(--tag);color:var(--tag-ink)}
+.tot.main span{color:var(--tag-ink);opacity:.75}
+
+.editbar{display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-left:4px solid var(--accent);padding:10px 12px;border-radius:4px;font-size:14px}
+
+#sections{display:flex;flex-direction:column;gap:28px}
+section{display:flex;flex-direction:column;gap:10px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:2px solid var(--ink);padding-bottom:6px}
+h2{font-family:var(--font-label);font-size:24px;font-weight:700;margin:0;text-wrap:balance}
+h3{font-family:var(--font-label);font-size:16px;font-weight:600;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sec-sum{font-family:var(--font-label);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sec-note{margin:0;color:var(--muted);font-size:14px}
+
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+li.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+body.editing li.item{border-left:3px solid var(--accent);padding-left:10px}
+.name{font-weight:700;overflow-wrap:anywhere}
+.de{color:var(--accent);font-size:14px;overflow-wrap:anywhere}
+.qty{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.price{font-family:var(--font-label);font-weight:600;font-size:18px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;background:none;border:none;color:var(--ink);padding:0;align-self:start}
+button.price{border-bottom:1.5px dashed var(--accent);cursor:pointer;border-radius:0}
+button.price:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.meta{display:flex;flex-direction:column;min-width:0}
+.checks{grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;align-items:center}
+.flag{font-family:var(--font-label);text-transform:uppercase;letter-spacing:.06em;font-size:13px;font-weight:600;color:var(--muted)}
+
+.chk{position:relative}
+.chk input{position:absolute;opacity:0;width:1px;height:1px}
+.chk label{display:inline-flex;align-items:center;justify-content:center;min-width:48px;height:36px;padding:0 10px;border:1.5px solid var(--line);border-radius:18px;font-family:var(--font-label);font-weight:600;font-size:15px;letter-spacing:.04em;cursor:pointer;background:var(--surface);color:var(--ink);user-select:none}
+.chk input:checked + label{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chk input:focus-visible + label{outline:3px solid var(--accent);outline-offset:2px}
+li.item.got .name, li.item.got .qty, li.item.got .de{color:var(--done)}
+li.item.got .name{text-decoration:line-through}
+li.item.off .name, li.item.off .de, li.item.off .qty, li.item.off .price{color:var(--done)}
+
+.link{background:none;border:none;padding:6px 4px;font-family:var(--font-label);font-weight:600;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);cursor:pointer;border-radius:4px}
+.link.warn{color:var(--warn)}
+.link:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.link:disabled{opacity:.5;cursor:default}
+
+/* Forms (edit and add) */
+.editor{grid-column:1 / -1;background:var(--surface);border:1.5px solid var(--accent);border-radius:6px;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+li.formrow{padding:12px 0;border-bottom:1px solid var(--line)}
+li.formrow .editor{margin:0}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field.full{grid-column:1 / -1}
+.field label{font-family:var(--font-label);text-transform:uppercase;letter-spacing:.06em;font-size:13px;font-weight:600;color:var(--muted)}
+.field input,.field select{font:inherit;font-size:16px;padding:10px 12px;border:1.5px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0;width:100%}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.form-row{grid-column:1 / -1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.form-msg{font-size:14px;color:var(--warn)}
+
+.addline{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:4px}
+.quick{display:flex;flex-wrap:wrap;gap:8px}
+.qchip{font-family:var(--font-body);font-size:14px;border:1.5px dashed var(--line);background:transparent;color:var(--ink);border-radius:16px;padding:6px 12px;cursor:pointer}
+.qchip b{font-family:var(--font-label);font-weight:600;font-variant-numeric:tabular-nums;margin-left:4px}
+.qchip:hover{border-color:var(--accent)}
+.qchip:disabled{opacity:.45;cursor:default}
+.qchip:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.empty{color:var(--muted);font-size:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.loading{color:var(--muted);font-size:14px;padding:12px 0}
+
+.tips{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px}
+.tips ul{gap:10px}
+.tips li{padding-left:16px;position:relative}
+.tips li::before{content:"";position:absolute;left:0;top:.6em;width:6px;height:6px;background:var(--tag);border:1px solid var(--tag-ink);border-radius:1px}
+.meals{display:flex;flex-wrap:wrap;gap:8px}
+.meal{border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:6px 10px;font-size:14px}
+
+.row-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button.btn{font-family:var(--font-label);font-weight:600;font-size:16px;letter-spacing:.04em;text-transform:uppercase;padding:10px 16px;border-radius:6px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer}
+button.btn.solid{background:var(--ink);color:var(--bg)}
+button.btn.edit-on{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+button.btn.small{font-size:14px;padding:6px 12px}
+button.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.btn:disabled{opacity:.5;cursor:default}
+.foot{color:var(--muted);font-size:13px;margin:0}
+@media (max-width:420px){ h1{font-size:34px} .tot b{font-size:22px} .editor{grid-template-columns:minmax(0,1fr)} }
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">One person · Aldi, Lidl, Rewe · Prices approx. Oct 2026</div>
+    <h1>Shafi's Monthly Groceries</h1>
+    <p class="lede">A lean list for a month on a student budget, with chicken and beef every week. Tap the chips as you shop. Tap Edit list to add, change, skip or delete items.</p>
+    <div class="toolbar">
+      <div class="status" id="status" role="status">Connecting…</div>
+      <button type="button" class="btn" id="edit-toggle" aria-pressed="false">Edit list</button>
+    </div>
+    <div class="totals" aria-label="Estimated totals">
+      <div class="tot main"><span>Per month</span><b id="t-month">0 €</b></div>
+      <div class="tot"><span>Per week</span><b id="t-week">0 €</b></div>
+      <div class="tot"><span>Stock-up</span><b id="t-start">0 €</b></div>
+    </div>
+    <div class="editbar" id="editbar" hidden>You are editing. Tap a price to change it, or use Edit and Delete on any item. Tap Done when you finish.</div>
+  </header>
+
+  <div id="sections"><p class="loading">Loading your list…</p></div>
+
+  <section>
+    <div class="sec-head"><h2>What this cooks</h2></div>
+    <div class="meals">
+      <span class="meal">Chicken curry with rice</span>
+      <span class="meal">Beef keema with potatoes</span>
+      <span class="meal">Dal, rice and a fried egg</span>
+      <span class="meal">Pasta with mince and tomato sauce</span>
+      <span class="meal">Chicken and frozen veg stir fry</span>
+      <span class="meal">Oats with banana for breakfast</span>
+      <span class="meal">Egg bhurji on toast</span>
+    </div>
+  </section>
+
+  <section class="tips">
+    <div class="sec-head"><h2>Ways to spend less</h2></div>
+    <ul>
+      <li>Do the main shop at Aldi Süd or Lidl. Use Rewe only when something is on offer.</li>
+      <li>Install the Lidl Plus and Aldi Süd apps and check the weekly Prospekt. Buy meat when it is on offer and freeze it in weekly portions.</li>
+      <li>Rice, lentils and spices are much cheaper in Asian or Turkish shops. Turkish shops also sell halal chicken and beef if you prefer that.</li>
+      <li>Tap water is safe to drink in Germany, so skip bottled water. If you do buy bottles, return them for the Pfand (usually 0,25 € each).</li>
+      <li>Online delivery usually has a minimum order and a fee, so it only makes sense for the heavy monthly pantry shop.</li>
+    </ul>
+  </section>
+
+  <div class="row-btns">
+    <button type="button" class="btn" id="reset">New month, clear ticks</button>
+    <button type="button" class="btn solid" id="confirm" hidden>Yes, clear ticks</button>
+    <button type="button" class="btn" id="cancel" hidden>Keep them</button>
+  </div>
+  <p class="foot">Clearing ticks keeps your items, prices and skips. Prices are typical Aldi and Lidl shelf prices and will move a little. Rewe is usually 10 to 20% higher.</p>
+</div>
+
+<script>
+/* ==========================================================
+   STEP 1 OF THE GUIDE: paste your Firebase config here.
+   Leave it empty to run on this device only (no database).
+   ========================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAPNQW3FB8fsK-mZk1HwNrRjkCiXbOFP3Y",
+  authDomain: "german-grocery-tracker.firebaseapp.com",
+  projectId: "german-grocery-tracker",
+  storageBucket: "german-grocery-tracker.firebasestorage.app",
+  messagingSenderId: "359866134875",
+  appId: "1:359866134875:web:399e82f6789f605080aa7e",
+  measurementId: "G-G9BW4DLXE0"
+};
+
+const LIST_ID = "home";   // change this to keep a separate list, e.g. "suan"
+
+const SECTIONS = [
+  { key:"weekly",    title:"Every week",       note:"Buy these four times a month. The section total is for the whole month.", labels:["W1","W2","W3","W4"], mult:4 },
+  { key:"monthly",   title:"Once a month",     note:"Pantry staples. One big shop at the start of the month.", labels:["Got it"], mult:1 },
+  { key:"extras",    title:"Optional extras",  note:"Nice to have. Skip any of them in a tight month and they stay here for next time.", labels:["Got it"], mult:1 },
+  { key:"household", title:"Household",        note:"", labels:["Got it"], mult:1 },
+  { key:"starter",   title:"Stock up when low", note:"Things that last a few months, like salt and spices. Buy them only when they run out. Not counted in the monthly total.", labels:["Got it"], mult:1, oneOff:true }
+];
+// Starter list, used to fill an empty list on request and when the database is not available
+const STARTER = {
+  weekly: [
+    ["Chicken thighs or drumsticks","Hähnchenschenkel / Hähnchenunterschenkel","about 1 kg; swap for breast fillet when on offer",5.00],
+    ["Beef mince","Rinderhackfleisch","500 g; some weeks take Rindergulasch instead",4.49],
+    ["Eggs","Eier","10 pieces",2.49],
+    ["Milk","H-Milch or Frische Vollmilch","2 litres",1.98],
+    ["Bread","Toastbrot or Vollkornbrot","1 loaf",1.29],
+    ["Fresh vegetables","Tomaten, Karotten, Gurke, Paprika","about 2 kg mixed, whatever is cheapest",4.00],
+    ["Fruit","Bananen, Äpfel","about 2 kg",3.00],
+    ["Plain yogurt","Joghurt natur","500 g",0.99]
+  ],
+  monthly: [
+    ["Rice","Basmatireis or Langkornreis","5 kg sack (Asian shop is cheapest)",10.00],
+    ["Red lentils","Rote Linsen","1 kg",2.98],
+    ["Potatoes","Kartoffeln","2.5 kg",2.99],
+    ["Onions","Zwiebeln","3 kg",2.99],
+    ["Garlic and ginger","Knoblauch, Ingwer","1 net and 1 root",2.00],
+    ["Chopped tomatoes","Gehackte Tomaten","4 cans",2.60],
+    ["Frozen vegetables","TK Gemüse, Blattspinat","2 bags",4.00],
+    ["Pasta","Spaghetti or Penne","1 kg",1.58],
+    ["Oats","Haferflocken","1 kg",1.38],
+    ["Cooking oil","Sonnenblumenöl","1 litre",1.79],
+    ["Tea","Schwarzer Tee","1 box",1.50]
+  ],
+  household: [
+    ["Toilet paper","Toilettenpapier","8 rolls",2.99],
+    ["Washing up liquid","Spülmittel","1 bottle",0.75],
+    ["Laundry detergent","Waschmittel","1 pack, lasts about 2 months",4.99],
+    ["Bin bags","Müllbeutel","1 roll",1.49],
+    ["Sponges","Schwämme","1 pack",0.89]
+  ],
+  starter: [
+    ["Salt","Salz","500 g",0.39],
+    ["Sugar","Zucker","1 kg",0.99],
+    ["Spices","Kurkuma, Chili, Kreuzkümmel, Koriander, Garam Masala","about 100 g each, from an Asian shop",8.00]
+  ]
+};
+const SUGGEST = [
+  ["Butter","Butter","250 g",2.29],
+  ["Cheese slices","Gouda Scheiben","400 g",2.69],
+  ["Instant coffee","Instantkaffee","200 g",4.99],
+  ["Chickpeas","Kichererbsen","2 cans",1.58],
+  ["Peanut butter","Erdnussbutter","350 g",2.49],
+  ["Honey","Honig","500 g",3.49],
+  ["Frozen fish fillets","TK Fischfilet","400 g",3.49],
+  ["Tuna","Thunfisch","2 cans",2.58]
+];
+function starterItems(){
+  const out = [];
+  for (const [sec, rows] of Object.entries(STARTER)) rows.forEach((r,i) => out.push({ id: sec + "-" + i, section: sec, name:r[0], de:r[1], qty:r[2], price:r[3], active:true, order:i+1 }));
+  return out;
+}
+
+/* ---------- state ---------- */
+const LS_KEY = "shafi-groceries-v2";
+let items = [];            // {id, section, name, de, qty, price, active, order}
+let ticks = {};            // { "<itemId>-<j>": true }
+let loaded = false;        // items known (from db or local)
+let editing = false;       // edit mode
+let openEditor = null;     // item id being edited, or "add:<section>"
+let confirmDel = null;     // item id awaiting delete confirmation
+let drafts = {};           // unsaved form values keyed by editor id
+let readOnly = false;
+let db = null, itemsCol = null, ticksRef = null;
+
+const $ = id => document.getElementById(id);
+const eur = n => (Math.round((Number(n)||0)*100)/100).toFixed(2).replace(".", ",") + " €";
+function setStatus(t, cls){ const s=$("status"); s.textContent=t; s.className="status" + (cls?" "+cls:""); }
+function el(tag, props, ...kids){ const n=document.createElement(tag); if (props) for (const [k,v] of Object.entries(props)){ if (k==="class") n.className=v; else if (k==="text") n.textContent=v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else if (v!==undefined && v!==null && v!==false) n.setAttribute(k, v===true?"":v); } kids.flat().forEach(c => c && n.append(c)); return n; }
+function parsePrice(s){ const v = parseFloat(String(s).trim().replace(/\s|€/g,"").replace(",", ".")); return isFinite(v) && v >= 0 && v < 1000 ? Math.round(v*100)/100 : null; }
+const priceInput = n => (Math.round((Number(n)||0)*100)/100).toFixed(2).replace(".", ",");
+
+// local storage fallback
+function lsLoad(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e){ return null; } }
+function lsSave(){ if (db) return; try { localStorage.setItem(LS_KEY, JSON.stringify({ items, ticks })); } catch(e){} }
+function oldLocalTicks(){ try { const o = JSON.parse(localStorage.getItem("shafi-groceries-v1") || "null"); return o ? (o.ticks || o) : null; } catch(e){ return null; } }
+
+/* ---------- writes ---------- */
+function handleErr(e){
+  const code = e && e.code;
+  if (code === "invalid_argument" || code === "permission-denied"){ readOnly = true; editing = false; setStatus("This Google account is not allowed to use this list. Sign out and use an allowed account.", "err"); render(); }
+  else if (code === "quota_exceeded"){ setStatus("The list is full. Delete a few items and try again.", "err"); }
+  else { setStatus("Could not save just now. Check your connection and try again.", "err"); }
+}
+const saved = () => setStatus(db ? "Saved to your list database" : "Saved on this device only", db ? "ok" : "");
+
+let tickBusy = false, tickDirty = false;
+async function saveTicks(){
+  if (!ticksRef){ lsSave(); return; }
+  if (tickBusy){ tickDirty = true; return; }
+  tickBusy = true; setStatus("Saving…");
+  try { do { tickDirty = false; await ticksRef.set({ ticks: {...ticks}, updatedAt: Date.now() }); } while (tickDirty); saved(); }
+  catch(e){ handleErr(e); }
+  tickBusy = false;
+}
+async function createItem(body){
+  if (!itemsCol){ items.push({ id: "l" + Date.now().toString(36) + Math.random().toString(36).slice(2,6), ...body }); lsSave(); render(); return true; }
+  setStatus("Saving…");
+  try { await itemsCol.doc().set(body); saved(); return true; } catch(e){ handleErr(e); return false; }
+}
+async function updateItem(id, patch){
+  if (!itemsCol){ const it = items.find(x => x.id === id); if (it) Object.assign(it, patch); lsSave(); render(); return true; }
+  setStatus("Saving…");
+  try { await itemsCol.doc(id).update(patch); saved(); return true; } catch(e){ handleErr(e); return false; }
+}
+async function deleteItem(id){
+  let changed = false;
+  for (const k of Object.keys(ticks)) if (k.startsWith(id + "-")){ delete ticks[k]; changed = true; }
+  if (!itemsCol){ items = items.filter(x => x.id !== id); lsSave(); render(); return; }
+  setStatus("Saving…");
+  try { await itemsCol.doc(id).delete(); saved(); if (changed) saveTicks(); } catch(e){ handleErr(e); }
+}
+async function loadStarter(){
+  const list = starterItems();
+  if (!itemsCol){ items = list; lsSave(); render(); return; }
+  setStatus("Saving…");
+  try { for (const it of list){ const {id, ...body} = it; await itemsCol.doc(id).set(body); } saved(); } catch(e){ handleErr(e); }
+}
+
+/* ---------- rendering ---------- */
+function chip(cid, label, li, n, prefix){
+  const inp = el("input", { type:"checkbox", id:cid });
+  inp.checked = !!ticks[cid]; inp.disabled = readOnly;
+  inp.addEventListener("change", () => { if (inp.checked) ticks[cid] = true; else delete ticks[cid]; markGot(li, prefix, n); saveTicks(); });
+  return el("div", { class:"chk" }, inp, el("label", { for:cid, text:label }));
+}
+function markGot(li, prefix, n){ let all = true; for (let j=0;j<n;j++) if (!ticks[prefix + "-" + j]) all = false; li.classList.toggle("got", all); }
+
+function editorForm(key, init, sectionKey){
+  const d = drafts[key] || (drafts[key] = { ...init });
+  const fid = f => "e-" + f + "-" + key.replace(/[^A-Za-z0-9_-]/g, "_");
+  const inp = (f, label, attrs={}) => {
+    const i = el("input", { id: fid(f), autocomplete:"off", ...attrs });
+    i.value = d[f] ?? ""; i.addEventListener("input", () => { d[f] = i.value; });
+    return el("div", { class: "field" + (f==="name" ? " full" : "") }, el("label", { for: fid(f), text: label }), i);
+  };
+  const sel = el("select", { id: fid("section") });
+  SECTIONS.forEach(s => { const o = el("option", { value:s.key, text:s.title }); if ((d.section||sectionKey) === s.key) o.selected = true; sel.append(o); });
+  sel.addEventListener("change", () => { d.section = sel.value; });
+  const msg = el("span", { class:"form-msg", role:"alert" });
+  const isAdd = key.startsWith("add:");
+  const form = el("form", { class:"editor", novalidate:true },
+    inp("name", "Item", { placeholder:"e.g. Chickpeas" }),
+    inp("de", "German name (optional)", { placeholder:"e.g. Kichererbsen" }),
+    inp("qty", "Amount (optional)", { placeholder:"e.g. 2 cans" }),
+    inp("price", sectionKey === "weekly" ? "Price per week (€)" : "Price (€)", { inputmode:"decimal", placeholder:"1,58" }),
+    el("div", { class:"field" }, el("label", { for: fid("section"), text:"Section" }), sel),
+    el("div", { class:"form-row" },
+      el("button", { type:"submit", class:"btn solid small", text: isAdd ? "Add item" : "Save changes" }),
+      el("button", { type:"button", class:"btn small", text:"Cancel", onclick: () => { delete drafts[key]; openEditor = null; render(); } }),
+      msg)
+  );
+  form.addEventListener("submit", async ev => {
+    ev.preventDefault(); msg.textContent = "";
+    const name = String(d.name||"").trim(), price = parsePrice(d.price);
+    if (!name){ msg.textContent = "Type the item name."; $(fid("name")).focus(); return; }
+    if (price === null){ msg.textContent = "Enter a price like 1,58."; $(fid("price")).focus(); return; }
+    const body = { name: name.slice(0,80), de: String(d.de||"").trim().slice(0,80), qty: String(d.qty||"").trim().slice(0,80), price, section: d.section || sectionKey };
+    form.querySelectorAll("button").forEach(b => b.disabled = true);
+    const ok = isAdd ? await createItem({ ...body, active:true, order: Date.now() }) : await updateItem(key, body);
+    if (ok){ delete drafts[key]; openEditor = null; }
+    render();
+  });
+  return form;
+}
+
+function itemRow(it, sec){
+  const li = el("li", { class:"item" });
+  const prefix = it.id;
+  if (it.active === false) li.classList.add("off");
+  const meta = el("div", { class:"meta" },
+    el("span", { class:"name", text: it.name }),
+    it.de ? el("span", { class:"de", text: it.de }) : null,
+    it.qty ? el("span", { class:"qty", text: it.qty }) : null);
+  const priceText = eur(it.price) + (sec.key === "weekly" ? " /wk" : "");
+  const price = editing
+    ? el("button", { type:"button", class:"price", text: priceText, "aria-label": "Change price of " + it.name, onclick: () => openEdit(it, "price") })
+    : el("div", { class:"price", text: priceText });
+  li.append(meta, price);
+
+  if (editing && openEditor === it.id){ li.append(editorForm(it.id, { name:it.name, de:it.de||"", qty:it.qty||"", price:priceInput(it.price), section:it.section }, sec.key)); return li; }
+
+  const box = el("div", { class:"checks" });
+  if (editing){
+    if (confirmDel === it.id){
+      box.append(el("span", { class:"flag", text:"Delete this item?" }),
+        el("button", { type:"button", class:"link warn", text:"Yes, delete", onclick: () => { confirmDel = null; deleteItem(it.id); } }),
+        el("button", { type:"button", class:"link", text:"Keep", onclick: () => { confirmDel = null; render(); } }));
+    } else {
+      box.append(
+        el("button", { type:"button", class:"link", text:"Edit", onclick: () => openEdit(it) }),
+        el("button", { type:"button", class:"link", text: it.active === false ? "Add back" : "Skip this month", onclick: () => updateItem(it.id, { active: it.active === false }) }),
+        el("button", { type:"button", class:"link warn", text:"Delete", onclick: () => { confirmDel = it.id; render(); } }));
+    }
+  } else if (it.active === false){
+    box.append(el("span", { class:"flag", text:"Skipped this month" }));
+  } else {
+    sec.labels.forEach((w, j) => box.append(chip(prefix + "-" + j, w, li, sec.labels.length, prefix)));
+    markGot(li, prefix, sec.labels.length);
+  }
+  li.append(box);
+  return li;
+}
+function openEdit(it, focusField){
+  openEditor = it.id; confirmDel = null; render();
+  const f = $("e-" + (focusField || "name") + "-" + it.id.replace(/[^A-Za-z0-9_-]/g, "_"));
+  if (f){ f.focus(); if (focusField === "price") f.select(); }
+}
+
+function sectionTotal(sec){ return items.filter(x => x.section === sec.key && x.active !== false).reduce((a,x)=>a + (Number(x.price)||0), 0) * sec.mult; }
+
+function render(){
+  document.body.classList.toggle("editing", editing);
+  $("editbar").hidden = !editing;
+  const tg = $("edit-toggle"); tg.textContent = editing ? "Done" : "Edit list"; tg.classList.toggle("edit-on", editing); tg.setAttribute("aria-pressed", String(editing)); tg.disabled = readOnly || !loaded;
+  $("reset").disabled = readOnly;
+
+  const wrap = $("sections");
+  // keep focus on the field being typed in across a live re-render
+  const active = document.activeElement && document.activeElement.id;
+  wrap.innerHTML = "";
+  if (!loaded){ wrap.append(el("p", { class:"loading", text:"Loading your list…" })); return; }
+
+  if (!items.length){
+    wrap.append(el("section", null,
+      el("div", { class:"sec-head" }, el("h2", { text:"Your list is empty" })),
+      el("p", { class:"sec-note", text:"Load the starter list of about 27 items to begin, then change anything you like in Edit list." }),
+      readOnly ? null : el("div", { class:"addline" }, el("button", { type:"button", class:"btn solid", text:"Load starter list", onclick: e => { e.target.disabled = true; loadStarter(); } }))));
+  }
+
+  for (const sec of SECTIONS){
+    const list = items.filter(x => x.section === sec.key).sort((a,b) => (a.order||0) - (b.order||0));
+    if (!items.length && !list.length) continue;
+    const ul = el("ul");
+    list.forEach(it => ul.append(itemRow(it, sec)));
+    if (!list.length) ul.append(el("li", { class:"empty", text: editing ? "Nothing here yet. Add the first item below." : "Nothing here yet. Tap Edit list to add items." }));
+
+    const addKey = "add:" + sec.key;
+    if (editing && openEditor === addKey) ul.append(el("li", { class:"formrow" }, editorForm(addKey, { name:"", de:"", qty:"", price:"", section:sec.key }, sec.key)));
+
+    const s = el("section", { id: sec.key },
+      el("div", { class:"sec-head" }, el("h2", { text: sec.title }), el("span", { class:"sec-sum", text: eur(sectionTotal(sec)) + (sec.key === "weekly" ? " /mo" : "") })),
+      sec.note ? el("p", { class:"sec-note", text: sec.note }) : null,
+      ul);
+
+    if (editing && openEditor !== addKey){
+      s.append(el("div", { class:"addline" }, el("button", { type:"button", class:"btn small", text:"+ Add item", onclick: () => { openEditor = addKey; confirmDel = null; render(); const f = $("e-name-add_" + sec.key); if (f) f.focus(); } })));
+    }
+    if (editing && sec.key === "extras"){
+      const have = new Set(items.map(x => (x.name||"").toLowerCase()));
+      const q = el("div", { class:"quick" });
+      SUGGEST.forEach(sg => {
+        const b = el("button", { type:"button", class:"qchip" }, "+ " + sg[0], el("b", { text: eur(sg[3]) }));
+        b.disabled = have.has(sg[0].toLowerCase());
+        b.addEventListener("click", () => { b.disabled = true; createItem({ section:"extras", name:sg[0], de:sg[1], qty:sg[2], price:sg[3], active:true, order:Date.now() }); });
+        q.append(b);
+      });
+      s.append(el("h3", { text:"Quick add" }), q);
+    }
+    wrap.append(s);
+  }
+
+  // totals
+  let month = 0, start = 0;
+  for (const sec of SECTIONS){ if (sec.oneOff) start += sectionTotal(sec); else month += sectionTotal(sec); }
+  $("t-month").textContent = Math.round(month) + " €";
+  $("t-week").textContent = Math.round(sectionTotal(SECTIONS[0]) / 4) + " €";
+  $("t-start").textContent = Math.round(start) + " €";
+
+  if (active){ const f = $(active); if (f && f.tagName !== "BUTTON") f.focus(); }
+}
+
+/* ---------- top controls ---------- */
+$("edit-toggle").addEventListener("click", () => { editing = !editing; openEditor = null; confirmDel = null; drafts = {}; render(); });
+const rb = $("reset"), cb = $("confirm"), kb = $("cancel");
+rb.addEventListener("click", () => { rb.hidden = true; cb.hidden = false; kb.hidden = false; cb.focus(); });
+kb.addEventListener("click", () => { rb.hidden = false; cb.hidden = true; kb.hidden = true; });
+cb.addEventListener("click", () => { ticks = {}; saveTicks(); render(); rb.hidden = false; cb.hidden = true; kb.hidden = true; });
+
+/* ---------- boot ---------- */
+function useLocal(){
+  const o = lsLoad();
+  if (o && Array.isArray(o.items)){ items = o.items; ticks = o.ticks || {}; }
+  else { items = starterItems(); ticks = oldLocalTicks() || {}; }
+  loaded = true; setStatus("Saved on this device only"); render();
+}
+function showSignIn(){
+  loaded = false; render();
+  const wrap = $("sections"); wrap.innerHTML = "";
+  const msg = el("p", { class:"form-msg", role:"alert" });
+  wrap.append(el("section", null,
+    el("div", { class:"sec-head" }, el("h2", { text:"Sign in to open your list" })),
+    el("p", { class:"sec-note", text:"Your list is saved in your own database. Sign in with an allowed Google account to see and change it." }),
+    el("div", { class:"addline" }, el("button", { type:"button", class:"btn solid", text:"Sign in with Google", onclick: async () => {
+      msg.textContent = "";
+      try { await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+      catch(e){ msg.textContent = e && e.code === "auth/unauthorized-domain" ? "This website is not on the Firebase authorised domains list yet. See step 6 of the guide." : "Sign in did not finish. Try again."; }
+    } }), msg)));
+  setStatus("Not signed in");
+}
+let unsubs = [];
+function startDb(user){
+  const fs = firebase.firestore();
+  const base = fs.collection("lists").doc(LIST_ID);
+  db = fs; itemsCol = base.collection("items"); ticksRef = base.collection("meta").doc("ticks");
+  readOnly = false;
+  const out = el("button", { type:"button", class:"link", text:"Sign out", onclick: () => firebase.auth().signOut() });
+  out.id = "signout"; const old = $("signout"); if (old) old.remove(); $("edit-toggle").before(out);
+  let ticksSettled = false;
+  unsubs.push(ticksRef.onSnapshot({ includeMetadataChanges:false }, snap => {
+    if (tickBusy) return;
+    const remote = snap.exists ? (snap.data().ticks || {}) : null;
+    if (!ticksSettled){ ticksSettled = true; }
+    ticks = remote ? { ...remote } : {};
+    if (loaded) render();
+  }, handleErr));
+  unsubs.push(itemsCol.onSnapshot(qs => {
+    items = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+    loaded = true; saved(); render();
+  }, handleErr));
+}
+render();
+if (!FIREBASE_CONFIG.apiKey || typeof firebase === "undefined"){ useLocal(); }
+else {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.auth().onAuthStateChanged(user => {
+    unsubs.forEach(u => u()); unsubs = [];
+    const so = $("signout"); if (so) so.remove();
+    if (user) startDb(user); else { db = null; itemsCol = null; ticksRef = null; showSignIn(); }
+  });
+}
+</script>
+</body>
+</html>
