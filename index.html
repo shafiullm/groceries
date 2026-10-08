@@ -59,6 +59,16 @@ h1{font-family:var(--font-label);font-weight:700;font-size:40px;line-height:1;ma
 .tot.main{background:var(--tag);border-color:var(--tag);color:var(--tag-ink)}
 .tot.main span{color:var(--tag-ink);opacity:.75}
 
+.spent{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.spent-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.spent-head span{font-family:var(--font-label);text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--muted);font-weight:600}
+.spent-head b{font-family:var(--font-label);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.bar{height:10px;border-radius:5px;background:var(--accent-soft);overflow:hidden}
+.bar .fill{height:100%;width:0;background:var(--accent);border-radius:5px;transition:width .25s ease}
+.spent.over .bar .fill{background:var(--warn)}
+.spent-foot{margin:0;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.spent.over .spent-foot{color:var(--warn)}
+
 .editbar{display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-left:4px solid var(--accent);padding:10px 12px;border-radius:4px;font-size:14px}
 
 #sections{display:flex;flex-direction:column;gap:28px}
@@ -154,6 +164,11 @@ button.btn:disabled{opacity:.5;cursor:default}
       <div class="tot main"><span>Per month</span><b id="t-month">0 €</b></div>
       <div class="tot"><span>Per week</span><b id="t-week">0 €</b></div>
       <div class="tot"><span>Stock-up</span><b id="t-start">0 €</b></div>
+    </div>
+    <div class="spent" id="spent">
+      <div class="spent-head"><span>Spent so far</span><b id="s-total">0,00 €</b></div>
+      <div class="bar" id="s-bar" role="progressbar" aria-label="Monthly list bought so far" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="s-fill"></div></div>
+      <p class="spent-foot" id="s-foot">Tick items as you buy them to track your spending.</p>
     </div>
     <div class="editbar" id="editbar" hidden>You are editing. Tap a price to change it, or use Edit and Delete on any item. Tap Done when you finish.</div>
   </header>
@@ -340,7 +355,7 @@ async function loadStarter(){
 function chip(cid, label, li, n, prefix){
   const inp = el("input", { type:"checkbox", id:cid });
   inp.checked = !!ticks[cid]; inp.disabled = readOnly;
-  inp.addEventListener("change", () => { if (inp.checked) ticks[cid] = true; else delete ticks[cid]; markGot(li, prefix, n); saveTicks(); });
+  inp.addEventListener("change", () => { if (inp.checked) ticks[cid] = true; else delete ticks[cid]; markGot(li, prefix, n); updateSpent(); saveTicks(); });
   return el("div", { class:"chk" }, inp, el("label", { for:cid, text:label }));
 }
 function markGot(li, prefix, n){ let all = true; for (let j=0;j<n;j++) if (!ticks[prefix + "-" + j]) all = false; li.classList.toggle("got", all); }
@@ -428,6 +443,34 @@ function openEdit(it, focusField){
 
 function sectionTotal(sec){ return items.filter(x => x.section === sec.key && x.active !== false).reduce((a,x)=>a + (Number(x.price)||0), 0) * sec.mult; }
 
+// Each ticked chip counts one purchase of that item: a W1..W4 chip adds one week's price, Got it adds the full price.
+function spentSoFar(){
+  let month = 0, stock = 0;
+  for (const it of items){
+    const sec = SECTIONS.find(s => s.key === it.section);
+    if (!sec || it.active === false) continue;
+    let n = 0;
+    for (let j=0;j<sec.labels.length;j++) if (ticks[it.id + "-" + j]) n++;
+    const v = n * (Number(it.price)||0);
+    if (sec.oneOff) stock += v; else month += v;
+  }
+  return { month, stock };
+}
+function updateSpent(){
+  const { month, stock } = spentSoFar();
+  let plan = 0;
+  for (const sec of SECTIONS) if (!sec.oneOff) plan += sectionTotal(sec);
+  const pct = plan > 0 ? Math.min(100, month / plan * 100) : 0;
+  const over = month - plan > 0.005;
+  $("spent").classList.toggle("over", over);
+  $("s-total").textContent = eur(month + stock);
+  $("s-fill").style.width = pct + "%";
+  $("s-bar").setAttribute("aria-valuenow", String(Math.round(pct)));
+  let foot = eur(month) + " of " + eur(plan) + " monthly list · " + (over ? eur(month - plan) + " over" : eur(plan - month) + " left");
+  if (stock > 0) foot += " · plus " + eur(stock) + " stock-up";
+  $("s-foot").textContent = foot;
+}
+
 function render(){
   document.body.classList.toggle("editing", editing);
   $("editbar").hidden = !editing;
@@ -485,6 +528,7 @@ function render(){
   $("t-month").textContent = Math.round(month) + " €";
   $("t-week").textContent = Math.round(sectionTotal(SECTIONS[0]) / 4) + " €";
   $("t-start").textContent = Math.round(start) + " €";
+  updateSpent();
 
   if (active){ const f = $(active); if (f && f.tagName !== "BUTTON") f.focus(); }
 }
